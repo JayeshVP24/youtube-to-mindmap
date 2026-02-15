@@ -3,6 +3,8 @@
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Loading03Icon } from "@hugeicons/core-free-icons";
 
 export interface GenerateResult {
   url: string;
@@ -12,18 +14,12 @@ export interface GenerateResult {
 
 function LoadingSpinner({ className }: { className?: string }) {
   return (
-    <svg
+    <HugeiconsIcon
+      icon={Loading03Icon}
       className={className}
-      width="14"
-      height="14"
-      viewBox="0 0 14 14"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-    >
-      <path d="M7 1v2M7 11v2M1 7h2M11 7h2M2.75 2.75l1.42 1.42M9.83 9.83l1.42 1.42M2.75 11.25l1.42-1.42M9.83 4.17l1.42-1.42" className="animate-spin origin-center" />
-    </svg>
+      size={14}
+      strokeWidth={2}
+    />
   );
 }
 
