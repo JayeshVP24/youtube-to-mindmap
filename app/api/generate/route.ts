@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { extractVideoId, fetchTranscript } from "@/lib/youtube";
 import { generateMindmapMarkdown } from "@/lib/ai";
 
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -28,6 +30,7 @@ export async function POST(request: NextRequest) {
     try {
       transcript = await fetchTranscript(videoId);
     } catch (error) {
+      console.error("Transcript fetch failed for video:", videoId, error);
       const message =
         error instanceof Error
           ? error.message

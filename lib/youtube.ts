@@ -78,32 +78,62 @@ function getRandomUserAgent(): string {
 
 /**
  * Fetch the transcript for a YouTube video and return it as a single string.
+ * Retries with different user agents on failure.
  * Throws a descriptive error if no transcript is available.
  */
 export async function fetchTranscript(videoId: string): Promise<string> {
-  const segments = await ytFetchTranscript(videoId, {
-    lang: "en",
-    userAgent: getRandomUserAgent(),
-  });
+  const MAX_RETRIES = 3;
+  let lastError: Error | null = null;
 
-  if (!segments || segments.length === 0) {
-    throw new Error(
-      "No transcript available for this video. The video may not have captions enabled."
-    );
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const userAgent = getRandomUserAgent();
+
+      const segments = await ytFetchTranscript(videoId, {
+        lang: "en",
+        userAgent,
+      });
+
+      if (!segments || segments.length === 0) {
+        throw new Error(
+          "No transcript available for this video. The video may not have captions enabled."
+        );
+      }
+
+      const text = decodeHtmlEntities(
+        segments
+          .map((s) => s.text)
+          .join(" ")
+          .replace(/\n/g, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+      );
+
+      if (!text) {
+        throw new Error("Transcript is empty.");
+      }
+
+      return text;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      // Don't retry on errors that won't be fixed by retrying
+      const msg = lastError.message.toLowerCase();
+      if (
+        msg.includes("disabled") ||
+        msg.includes("not available") ||
+        msg.includes("unavailable") ||
+        msg.includes("invalid")
+      ) {
+        throw lastError;
+      }
+
+      // Wait before retrying (exponential backoff: 500ms, 1s, 2s)
+      if (attempt < MAX_RETRIES - 1) {
+        await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
+      }
+    }
   }
 
-  const text = decodeHtmlEntities(
-    segments
-      .map((s) => s.text)
-      .join(" ")
-      .replace(/\n/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-  );
-
-  if (!text) {
-    throw new Error("Transcript is empty.");
-  }
-
-  return text;
+  throw lastError ?? new Error("Failed to fetch transcript for this video.");
 }
