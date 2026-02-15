@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ markdown });
+    return NextResponse.json({ markdown, videoId });
   } catch (error) {
     console.error("Unhandled error in /api/generate:", error);
     return NextResponse.json(

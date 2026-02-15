@@ -4,14 +4,43 @@ import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-interface UrlInputProps {
-  onGenerate: (markdown: string) => void;
+export interface GenerateResult {
+  url: string;
+  videoId: string;
+  markdown: string;
 }
 
-export function UrlInput({ onGenerate }: UrlInputProps) {
+function LoadingSpinner({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    >
+      <path d="M7 1v2M7 11v2M1 7h2M11 7h2M2.75 2.75l1.42 1.42M9.83 9.83l1.42 1.42M2.75 11.25l1.42-1.42M9.83 4.17l1.42-1.42" className="animate-spin origin-center" />
+    </svg>
+  );
+}
+
+interface UrlInputProps {
+  onGenerate: (result: GenerateResult) => void;
+  onLoadingChange?: (loading: boolean) => void;
+}
+
+export function UrlInput({ onGenerate, onLoadingChange }: UrlInputProps) {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function setLoadingState(value: boolean) {
+    setLoading(value);
+    onLoadingChange?.(value);
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -19,7 +48,7 @@ export function UrlInput({ onGenerate }: UrlInputProps) {
     const trimmed = url.trim();
     if (!trimmed) return;
 
-    setLoading(true);
+    setLoadingState(true);
     setError(null);
 
     try {
@@ -36,11 +65,15 @@ export function UrlInput({ onGenerate }: UrlInputProps) {
         return;
       }
 
-      onGenerate(data.markdown);
+      onGenerate({
+        url: trimmed,
+        videoId: data.videoId,
+        markdown: data.markdown,
+      });
     } catch {
       setError("Network error. Please check your connection and try again.");
     } finally {
-      setLoading(false);
+      setLoadingState(false);
     }
   }
 
@@ -56,7 +89,14 @@ export function UrlInput({ onGenerate }: UrlInputProps) {
           className="flex-1"
         />
         <Button type="submit" disabled={loading || !url.trim()} size="lg">
-          {loading ? "Generating..." : "Generate Mindmap"}
+          {loading ? (
+            <>
+              <LoadingSpinner className="animate-spin" />
+              Generating...
+            </>
+          ) : (
+            "Generate Mindmap"
+          )}
         </Button>
       </form>
       {error && (
@@ -65,3 +105,5 @@ export function UrlInput({ onGenerate }: UrlInputProps) {
     </div>
   );
 }
+
+export { LoadingSpinner };

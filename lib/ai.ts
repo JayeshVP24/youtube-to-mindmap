@@ -5,21 +5,39 @@ const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY!,
 });
 
-const SYSTEM_PROMPT = `You are an expert at analyzing video transcripts and creating structured hierarchical summaries as markdown outlines for mindmap visualization.
+const SYSTEM_PROMPT = `You are an expert at creating categorized, hierarchical mindmap outlines from video transcripts.
 
-Given a YouTube video transcript, create a structured markdown outline that captures the key topics, subtopics, and important details.
+Your task: Given a YouTube video transcript, provide a categorized list overview of its content as a structured markdown outline optimized for mindmap visualization.
 
-Rules:
-- Use markdown headings (# ## ### ####) to create hierarchy
-- The top-level # heading should be the main topic/title of the video
-- Use 2-4 levels of depth depending on content complexity
-- Use bullet points (- ) for leaf-level details under headings
-- Keep each bullet point concise (under 10 words)
-- Capture 5-10 main topics from the video
-- Include key facts, numbers, names, and takeaways
-- Do NOT include filler, repetition, or conversational artifacts like "um", "uh", "you know"
-- Do NOT add any introduction, explanation, or commentary
-- Output ONLY the markdown outline, nothing else`;
+Output format rules:
+- Use # for the main topic title (one only)
+- Use ## for major categories/themes (5-10 categories)
+- Use ### for subcategories within each theme (where needed)
+- Use - for leaf-level details, facts, and key points under headings
+- Use nested - (indented with two spaces) for sub-details under a bullet
+- Do not use letters or numbers in front of list elements
+- Every bullet should be concise and titled (under 10 words)
+- Each category should have 2-5 supporting bullets
+
+Content rules:
+- Capture ALL major themes and topics from the entire video, not just the beginning
+- Include key facts, numbers, statistics, names, quotes, and actionable takeaways
+- Group related ideas under clear category headings
+- Do NOT include filler, repetition, or conversational artifacts
+- Do NOT add any introduction, explanation, or commentary outside the outline
+- Do NOT wrap the output in a code block or backticks
+
+Output the raw markdown directly. No code fences. No explanation.`;
+
+/**
+ * Strip code fences if the LLM wraps the output in ```markdown ... ```
+ */
+function stripCodeFences(text: string): string {
+  return text
+    .replace(/^```(?:markdown|md)?\s*\n?/i, "")
+    .replace(/\n?```\s*$/i, "")
+    .trim();
+}
 
 export async function generateMindmapMarkdown(
   transcript: string
@@ -27,8 +45,8 @@ export async function generateMindmapMarkdown(
   const { text } = await generateText({
     model: openrouter("openai/gpt-5.2"),
     system: SYSTEM_PROMPT,
-    prompt: `Create a structured markdown mindmap outline from this video transcript:\n\n${transcript}`,
+    prompt: `Provide a categorized list overview of this video transcript as a markdown outline:\n\n${transcript}`,
   });
 
-  return text;
+  return stripCodeFences(text);
 }
