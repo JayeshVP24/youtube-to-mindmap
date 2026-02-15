@@ -1,20 +1,13 @@
 import { fetchTranscript as ytFetchTranscript } from "youtube-transcript-plus";
+import type { FetchParams } from "youtube-transcript-plus";
+import { ProxyAgent, fetch as undiciFetch } from "undici";
 
 /**
  * Extract a YouTube video ID from various URL formats.
- * Supports:
- *   - youtube.com/watch?v=ID
- *   - youtu.be/ID
- *   - youtube.com/embed/ID
- *   - youtube.com/v/ID
- *   - youtube.com/shorts/ID
- *   - youtube.com/live/ID
- *   - bare video ID (11 chars)
  */
 export function extractVideoId(url: string): string | null {
   const trimmed = url.trim();
 
-  // Bare video ID (11 alphanumeric + dash/underscore chars)
   if (/^[a-zA-Z0-9_-]{11}$/.test(trimmed)) {
     return trimmed;
   }
@@ -23,7 +16,6 @@ export function extractVideoId(url: string): string | null {
     const parsed = new URL(trimmed);
     const hostname = parsed.hostname.replace("www.", "");
 
-    // youtube.com/watch?v=ID
     if (
       (hostname === "youtube.com" || hostname === "m.youtube.com") &&
       parsed.pathname === "/watch"
@@ -31,12 +23,10 @@ export function extractVideoId(url: string): string | null {
       return parsed.searchParams.get("v");
     }
 
-    // youtu.be/ID
     if (hostname === "youtu.be") {
       return parsed.pathname.slice(1) || null;
     }
 
-    // youtube.com/embed/ID, /v/ID, /shorts/ID, /live/ID
     if (hostname === "youtube.com" || hostname === "m.youtube.com") {
       const match = parsed.pathname.match(
         /^\/(embed|v|shorts|live)\/([a-zA-Z0-9_-]{11})/
@@ -51,7 +41,7 @@ export function extractVideoId(url: string): string | null {
 }
 
 /**
- * Decode HTML entities that YouTube transcripts contain (e.g. &#39; -> ')
+ * Decode HTML entities that YouTube transcripts contain
  */
 function decodeHtmlEntities(text: string): string {
   return text
@@ -63,7 +53,7 @@ function decodeHtmlEntities(text: string): string {
     .replace(/&nbsp;/g, " ");
 }
 
-// Rotate user agents to avoid detection
+// Rotate user agents to look like real browser traffic
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -77,13 +67,46 @@ function getRandomUserAgent(): string {
 }
 
 /**
+ * Create a proxy-aware fetch function for youtube-transcript-plus.
+ * Routes all YouTube requests through the configured proxy.
+ */
+function createProxyFetch(proxyUrl: string) {
+  const dispatcher = new ProxyAgent(proxyUrl);
+
+  return async (params: FetchParams): Promise<Response> => {
+    const { url, lang, userAgent, method = "GET", body, headers = {} } = params;
+
+    const fetchHeaders: Record<string, string> = {
+      "User-Agent": userAgent || getRandomUserAgent(),
+      ...(lang && { "Accept-Language": lang }),
+      ...headers,
+    };
+
+    const fetchOptions: Parameters<typeof undiciFetch>[1] = {
+      method,
+      headers: fetchHeaders,
+      dispatcher,
+    };
+
+    if (body && method === "POST") {
+      fetchOptions.body = body;
+    }
+
+    // undici fetch returns an undici Response which is spec-compatible
+    return undiciFetch(url, fetchOptions) as unknown as Response;
+  };
+}
+
+/**
  * Fetch the transcript for a YouTube video and return it as a single string.
- * Retries with different user agents on failure.
- * Throws a descriptive error if no transcript is available.
+ * Uses proxy if PROXY_URL is configured, retries with backoff on transient failures.
  */
 export async function fetchTranscript(videoId: string): Promise<string> {
   const MAX_RETRIES = 3;
   let lastError: Error | null = null;
+
+  const proxyUrl = process.env.PROXY_URL;
+  const proxyFetch = proxyUrl ? createProxyFetch(proxyUrl) : undefined;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
@@ -92,6 +115,11 @@ export async function fetchTranscript(videoId: string): Promise<string> {
       const segments = await ytFetchTranscript(videoId, {
         lang: "en",
         userAgent,
+        ...(proxyFetch && {
+          videoFetch: proxyFetch,
+          playerFetch: proxyFetch,
+          transcriptFetch: proxyFetch,
+        }),
       });
 
       if (!segments || segments.length === 0) {
@@ -117,7 +145,7 @@ export async function fetchTranscript(videoId: string): Promise<string> {
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 
-      // Don't retry on errors that won't be fixed by retrying
+      // Don't retry on permanent errors
       const msg = lastError.message.toLowerCase();
       if (
         msg.includes("disabled") ||
@@ -128,7 +156,7 @@ export async function fetchTranscript(videoId: string): Promise<string> {
         throw lastError;
       }
 
-      // Wait before retrying (exponential backoff: 500ms, 1s, 2s)
+      // Exponential backoff: 500ms, 1s, 2s
       if (attempt < MAX_RETRIES - 1) {
         await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
       }
