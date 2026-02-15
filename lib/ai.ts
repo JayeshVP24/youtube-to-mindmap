@@ -25,7 +25,7 @@ export async function generateMindmapMarkdown(
   transcript: string
 ): Promise<string> {
   const { text } = await generateText({
-    model: openrouter("openai/gpt-4o"),
+    model: openrouter("openai/gpt-5.2"),
     system: SYSTEM_PROMPT,
     prompt: `Create a structured markdown mindmap outline from this video transcript:\n\n${transcript}`,
   });
