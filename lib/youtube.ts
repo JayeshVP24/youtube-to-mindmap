@@ -1,4 +1,5 @@
 import { fetchTranscript as ytFetchTranscript } from "youtube-transcript-plus";
+import { YoutubeTranscriptNotAvailableLanguageError } from "youtube-transcript-plus";
 import type { FetchParams } from "youtube-transcript-plus";
 import { ProxyAgent, fetch as undiciFetch } from "undici";
 
@@ -108,12 +109,16 @@ export async function fetchTranscript(videoId: string): Promise<string> {
   const proxyUrl = process.env.PROXY_URL;
   const proxyFetch = proxyUrl ? createProxyFetch(proxyUrl) : undefined;
 
+  // Try English first, then fall back to any available language
+  const langsToTry: (string | undefined)[] = ["en"];
+
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
       const userAgent = getRandomUserAgent();
+      const lang = langsToTry[0];
 
       const segments = await ytFetchTranscript(videoId, {
-        lang: "en",
+        ...(lang && { lang }),
         userAgent,
         ...(proxyFetch && {
           videoFetch: proxyFetch,
@@ -143,6 +148,20 @@ export async function fetchTranscript(videoId: string): Promise<string> {
 
       return text;
     } catch (error) {
+      // If English isn't available, retry with the first available language
+      if (
+        error instanceof YoutubeTranscriptNotAvailableLanguageError &&
+        langsToTry[0] === "en"
+      ) {
+        const available = error.availableLangs;
+        // Prefer English variants (en-US, en-GB, etc.), then fall back to first available
+        const englishVariant = available.find((l) => l.startsWith("en"));
+        langsToTry[0] = englishVariant ?? available[0] ?? undefined;
+        // Don't count this as a retry attempt
+        attempt--;
+        continue;
+      }
+
       lastError = error instanceof Error ? error : new Error(String(error));
 
       // Don't retry on permanent errors

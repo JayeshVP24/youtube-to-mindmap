@@ -17,6 +17,17 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import type { HistoryEntry } from "@/lib/history";
 import { getHistory, deleteFromHistory, clearHistory } from "@/lib/history";
 
@@ -76,12 +87,6 @@ function SidebarInner({ onSelect, activeId, refreshKey }: HistorySidebarProps) {
     setEntries(getHistory());
   }, [refreshKey]);
 
-  function handleDelete(e: React.MouseEvent, id: string) {
-    e.stopPropagation();
-    deleteFromHistory(id);
-    setEntries(getHistory());
-  }
-
   function handleClearAll() {
     clearHistory();
     setEntries([]);
@@ -133,12 +138,36 @@ function SidebarInner({ onSelect, activeId, refreshKey }: HistorySidebarProps) {
                         </span>
                       </div>
                     </SidebarMenuButton>
-                    <SidebarMenuAction
-                      onClick={(e) => handleDelete(e, entry.id)}
-                      showOnHover
-                    >
-                      <TrashIcon />
-                    </SidebarMenuAction>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <SidebarMenuAction
+                          onClick={(e) => e.stopPropagation()}
+                          showOnHover
+                        >
+                          <TrashIcon />
+                        </SidebarMenuAction>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete mindmap?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will remove &ldquo;{entry.title}&rdquo; from your history. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            variant="destructive"
+                            onClick={() => {
+                              deleteFromHistory(entry.id);
+                              setEntries(getHistory());
+                            }}
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
@@ -149,15 +178,35 @@ function SidebarInner({ onSelect, activeId, refreshKey }: HistorySidebarProps) {
 
       {entries.length > 0 && (
         <SidebarFooter>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleClearAll}
-            className="w-full text-muted-foreground group-data-[collapsible=icon]:hidden transition-opacity duration-150"
-            style={{ opacity: contentVisible ? 1 : 0 }}
-          >
-            Clear all history
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-muted-foreground group-data-[collapsible=icon]:hidden transition-opacity duration-150"
+                style={{ opacity: contentVisible ? 1 : 0 }}
+              >
+                Clear all history
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear all history?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will remove all {entries.length} mindmap{entries.length !== 1 ? "s" : ""} from your history. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  onClick={handleClearAll}
+                >
+                  Clear all
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </SidebarFooter>
       )}
     </>

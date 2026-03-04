@@ -9,6 +9,8 @@ const SYSTEM_PROMPT = `You are an expert at creating categorized, hierarchical m
 
 Your task: Given a YouTube video transcript, provide a categorized list overview of its content as a structured markdown outline optimized for mindmap visualization.
 
+IMPORTANT: The transcript may be in any language. Regardless of the transcript's language, you MUST always produce the output in English.
+
 Output format rules:
 - Use # for the main topic title (one only)
 - Use ## for major categories/themes (5-10 categories)
